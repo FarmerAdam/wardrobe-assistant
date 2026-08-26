@@ -23,6 +23,16 @@ Mood-based outfit picker. Photograph your closet, answer a short style quiz once
 - `src/lib/matchOutfit.ts` — the matching logic: scores each closet item against the chosen mood + style profile, then combines top/bottom/dress + shoes into outfit suggestions.
 - `src/screens/` — the three main screens: Closet (browse), Add Item (camera + tagging), Mood (pick a mood, see outfits). Plus a one-time StyleSetupScreen quiz on first launch.
 
+## Deployment
+
+Live at **https://farmeradam.github.io/wardrobe-assistant/** — a static web export pushed to the `gh-pages` branch.
+
+To redeploy after changes:
+```
+npm run deploy
+```
+This runs `expo export --platform web` (baked with the `/wardrobe-assistant` base path set in `app.json`) then pushes `dist/` to `gh-pages` via the `gh-pages` package. Takes 1-2 minutes to go live after pushing.
+
 ## Where to take it next
 
 - Auto-tag photos (category/color/pattern) with a vision model instead of typing them in by hand.
