@@ -63,9 +63,15 @@ grant select, insert, update, delete on outfits to anon, authenticated;
 -- create policy "owner can read/write own items" on items
 --   using (profile_id = auth.uid()) with check (profile_id = auth.uid());
 
--- Storage: the `item-photos` bucket lives in the shared storage.objects
--- table, so instead of disabling its RLS wholesale, scope policies to just
--- this bucket.
+-- Storage: the `item-photos` bucket lives in the shared storage.objects /
+-- storage.buckets tables, so instead of disabling their RLS wholesale,
+-- scope policies to just this bucket. storage.buckets needs its own SELECT
+-- policy too -- without it, the Storage API can't find the bucket's row to
+-- validate an upload against and reports "Bucket not found" even though the
+-- bucket exists and is marked public.
+create policy "public read item-photos bucket" on storage.buckets
+  for select to public using (id = 'item-photos');
+
 create policy "public read item-photos" on storage.objects
   for select to public using (bucket_id = 'item-photos');
 create policy "public upload item-photos" on storage.objects
