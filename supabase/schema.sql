@@ -45,9 +45,32 @@ create table if not exists outfits (
   created_at timestamptz not null default now()
 );
 
--- Row Level Security: on for real use later once auth is wired up.
--- Left off for now since this starts as a single-family, single-device app.
--- When you add Supabase Auth, enable RLS on each table and add policies like:
+-- Row Level Security: intentionally OFF for now, since this starts as a
+-- single-family, single-device app with no auth yet. New Supabase projects
+-- can enable RLS by default even on plain `create table` statements, which
+-- blocks all access until policies exist — so disable it explicitly here.
+alter table profiles disable row level security;
+alter table items disable row level security;
+alter table outfits disable row level security;
+
+grant select, insert, update, delete on profiles to anon, authenticated;
+grant select, insert, update, delete on items to anon, authenticated;
+grant select, insert, update, delete on outfits to anon, authenticated;
+
+-- When you add Supabase Auth later, re-enable RLS on each table and add
+-- policies like:
 -- alter table items enable row level security;
 -- create policy "owner can read/write own items" on items
 --   using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+
+-- Storage: the `item-photos` bucket lives in the shared storage.objects
+-- table, so instead of disabling its RLS wholesale, scope policies to just
+-- this bucket.
+create policy "public read item-photos" on storage.objects
+  for select to public using (bucket_id = 'item-photos');
+create policy "public upload item-photos" on storage.objects
+  for insert to public with check (bucket_id = 'item-photos');
+create policy "public update item-photos" on storage.objects
+  for update to public using (bucket_id = 'item-photos');
+create policy "public delete item-photos" on storage.objects
+  for delete to public using (bucket_id = 'item-photos');
