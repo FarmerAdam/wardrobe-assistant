@@ -1,7 +1,8 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChoiceRow } from '../components/ChoiceRow';
+import { showAlert } from '../lib/alert';
 import { supabase } from '../lib/supabase';
 import { Category } from '../types';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -32,7 +33,7 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
     if (Platform.OS !== 'web') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Camera permission needed', 'Enable camera access to photograph an item.');
+        showAlert('Camera permission needed', 'Enable camera access to photograph an item.');
         return;
       }
     }
@@ -44,7 +45,7 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
     if (Platform.OS !== 'web') {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Photo access needed', 'Enable photo library access to choose an item photo.');
+        showAlert('Photo access needed', 'Enable photo library access to choose an item photo.');
         return;
       }
     }
@@ -54,24 +55,29 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
 
   async function save() {
     if (!photoUri) {
-      Alert.alert('Add a photo first');
+      showAlert('Add a photo first');
       return;
     }
     if (!primaryColor.trim()) {
-      Alert.alert('Add a primary color');
+      showAlert('Add a primary color');
       return;
     }
 
     setSaving(true);
     try {
-      const fileExt = photoUri.split('.').pop() ?? 'jpg';
-      const filePath = `${profileId}/${Date.now()}.${fileExt}`;
       const response = await fetch(photoUri);
-      const arrayBuffer = await response.arrayBuffer();
+      const blob = await response.blob();
+      // On web, photoUri is a blob: or data: URI with no real file extension,
+      // so derive the content type from the fetched blob itself rather than
+      // parsing the URI (which used to produce garbage like "image/io/1234").
+      const contentType = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
+      const fileExt = contentType.split('/')[1] || 'jpeg';
+      const filePath = `${profileId}/${Date.now()}.${fileExt}`;
+      const arrayBuffer = await blob.arrayBuffer();
 
       const { error: uploadError } = await supabase.storage
         .from('item-photos')
-        .upload(filePath, arrayBuffer, { contentType: `image/${fileExt}` });
+        .upload(filePath, arrayBuffer, { contentType });
       if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage.from('item-photos').getPublicUrl(filePath);
@@ -95,9 +101,9 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
       setPrimaryColor('');
       setMoodTags('');
       onSaved();
-      Alert.alert('Saved!', 'Item added to the closet.');
+      showAlert('Saved!', 'Item added to the closet.');
     } catch (err: any) {
-      Alert.alert('Something went wrong', err.message ?? String(err));
+      showAlert('Something went wrong', err.message ?? String(err));
     } finally {
       setSaving(false);
     }
