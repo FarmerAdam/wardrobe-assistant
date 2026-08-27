@@ -68,7 +68,9 @@ function Root() {
   return (
     <View style={styles.container}>
       <View style={styles.screen}>
-        {tab === 'closet' && <ClosetScreen profileId={profileId} refreshKey={refreshKey} />}
+        {tab === 'closet' && (
+          <ClosetScreen profileId={profileId} refreshKey={refreshKey} onAddItem={() => setTab('add')} />
+        )}
         {tab === 'add' && (
           <AddItemScreen
             profileId={profileId}

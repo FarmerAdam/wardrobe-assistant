@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChoiceRow } from '../components/ChoiceRow';
 import { supabase } from '../lib/supabase';
 import { Category } from '../types';
@@ -26,12 +26,29 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
   const [saving, setSaving] = useState(false);
 
   async function takePhoto() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Camera permission needed', 'Enable camera access to photograph an item.');
-      return;
+    // requestCameraPermissionsAsync is a no-op on web (the browser owns camera
+    // permission, not the OS), so calling it there just wastes the user gesture
+    // that launchCameraAsync needs to be called within on mobile browsers.
+    if (Platform.OS !== 'web') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Camera permission needed', 'Enable camera access to photograph an item.');
+        return;
+      }
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true });
+    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+  }
+
+  async function pickFromLibrary() {
+    if (Platform.OS !== 'web') {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Photo access needed', 'Enable photo library access to choose an item photo.');
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
     if (!result.canceled) setPhotoUri(result.assets[0].uri);
   }
 
@@ -98,6 +115,7 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
         </View>
       )}
       <PrimaryButton label="Take photo" onPress={takePhoto} />
+      <PrimaryButton label="Choose from library" onPress={pickFromLibrary} />
 
       <ChoiceRow label="Category" options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
 

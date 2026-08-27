@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
+import { PrimaryButton } from '../components/PrimaryButton';
 import { supabase } from '../lib/supabase';
 import { Item } from '../types';
 
-export function ClosetScreen({ profileId, refreshKey }: { profileId: string; refreshKey: number }) {
+export function ClosetScreen({
+  profileId,
+  refreshKey,
+  onAddItem,
+}: {
+  profileId: string;
+  refreshKey: number;
+  onAddItem: () => void;
+}) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +45,10 @@ export function ClosetScreen({ profileId, refreshKey }: { profileId: string; ref
   if (items.length === 0) {
     return (
       <View style={styles.center}>
-        <Text style={{ color: '#888' }}>No items yet — add your first one!</Text>
+        <Text style={{ color: '#888', marginBottom: 8 }}>No items yet — add your first one!</Text>
+        <View style={{ width: 200 }}>
+          <PrimaryButton label="+ Add an item" onPress={onAddItem} />
+        </View>
       </View>
     );
   }
