@@ -69,6 +69,8 @@ grant select, insert, update, delete on outfits to anon, authenticated;
 -- policy too -- without it, the Storage API can't find the bucket's row to
 -- validate an upload against and reports "Bucket not found" even though the
 -- bucket exists and is marked public.
+grant select on storage.buckets to anon, authenticated;
+
 create policy "public read item-photos bucket" on storage.buckets
   for select to public using (id = 'item-photos');
 
