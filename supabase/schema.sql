@@ -18,7 +18,7 @@ create table if not exists items (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references profiles(id) on delete cascade,
   photo_url text not null,
-  category text not null check (category in ('top','bottom','dress','shoes','outerwear','accessory')),
+  category text not null check (category in ('top','jumper','bottom','dress','shoes','outerwear','accessory')),
   primary_color text not null,
   secondary_color text,
   pattern text not null default 'solid', -- solid, striped, floral, plaid, graphic, other

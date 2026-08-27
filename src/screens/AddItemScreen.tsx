@@ -9,6 +9,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 
 const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: 'top', label: 'Top' },
+  { value: 'jumper', label: 'Jumper' },
   { value: 'bottom', label: 'Bottom' },
   { value: 'dress', label: 'Dress' },
   { value: 'shoes', label: 'Shoes' },

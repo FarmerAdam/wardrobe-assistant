@@ -62,10 +62,15 @@ export function scoreItem(item: Item, moodKey: string, styleProfile: StyleProfil
   return score;
 }
 
-/** Rank items in a category, best first, dropping anything in the laundry. */
-function rankCategory(items: Item[], category: Item['category'], moodKey: string, styleProfile: StyleProfile) {
+/** Rank items across one or more categories, best first, dropping anything in the laundry. */
+function rankCategory(
+  items: Item[],
+  categories: Item['category'][],
+  moodKey: string,
+  styleProfile: StyleProfile
+) {
   return items
-    .filter((i) => i.category === category && !i.in_laundry)
+    .filter((i) => categories.includes(i.category) && !i.in_laundry)
     .map((item) => ({ item, score: scoreItem(item, moodKey, styleProfile) }))
     .sort((a, b) => b.score - a.score);
 }
@@ -77,12 +82,14 @@ function rankCategory(items: Item[], category: Item['category'], moodKey: string
  * exact same item across suggestions unless the wardrobe is too small.
  */
 export function suggestOutfits(items: Item[], moodKey: string, styleProfile: StyleProfile, count = 3): Outfit[] {
-  const dresses = rankCategory(items, 'dress', moodKey, styleProfile);
-  const tops = rankCategory(items, 'top', moodKey, styleProfile);
-  const bottoms = rankCategory(items, 'bottom', moodKey, styleProfile);
-  const shoes = rankCategory(items, 'shoes', moodKey, styleProfile);
-  const outerwear = rankCategory(items, 'outerwear', moodKey, styleProfile);
-  const accessories = rankCategory(items, 'accessory', moodKey, styleProfile);
+  const dresses = rankCategory(items, ['dress'], moodKey, styleProfile);
+  // A jumper fills the same outfit slot as a top -- it's an alternative to
+  // wear on its own, not a separate layer like outerwear.
+  const tops = rankCategory(items, ['top', 'jumper'], moodKey, styleProfile);
+  const bottoms = rankCategory(items, ['bottom'], moodKey, styleProfile);
+  const shoes = rankCategory(items, ['shoes'], moodKey, styleProfile);
+  const outerwear = rankCategory(items, ['outerwear'], moodKey, styleProfile);
+  const accessories = rankCategory(items, ['accessory'], moodKey, styleProfile);
 
   const outfits: Outfit[] = [];
   const usedTopBottomOrDress = new Set<string>();
