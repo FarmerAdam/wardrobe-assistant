@@ -54,7 +54,9 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
                 item ? (
                   <View key={slot} style={styles.outfitItem}>
                     <Image source={{ uri: item.photo_url }} style={styles.outfitImage} />
-                    <Text style={styles.outfitCaption}>{slot}</Text>
+                    {/* Label by the item's real category, not its outfit slot --
+                        a jumper filling the "top" slot should still say "jumper". */}
+                    <Text style={styles.outfitCaption}>{item.category}</Text>
                   </View>
                 ) : null
               )}
