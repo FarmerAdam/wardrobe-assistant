@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { supabase } from '../lib/supabase';
 import { Item } from '../types';
@@ -8,10 +8,12 @@ export function ClosetScreen({
   profileId,
   refreshKey,
   onAddItem,
+  onEditItem,
 }: {
   profileId: string;
   refreshKey: number;
   onAddItem: () => void;
+  onEditItem: (item: Item) => void;
 }) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,12 +62,12 @@ export function ClosetScreen({
       numColumns={2}
       contentContainerStyle={{ padding: 8 }}
       renderItem={({ item }) => (
-        <View style={styles.card}>
+        <Pressable style={styles.card} onPress={() => onEditItem(item)}>
           <Image source={{ uri: item.photo_url }} style={styles.image} />
           <Text style={styles.caption}>
             {item.category} · {item.primary_color}
           </Text>
-        </View>
+        </Pressable>
       )}
     />
   );

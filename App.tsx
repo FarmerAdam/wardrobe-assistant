@@ -4,11 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddItemScreen } from './src/screens/AddItemScreen';
 import { ClosetScreen } from './src/screens/ClosetScreen';
+import { EditItemScreen } from './src/screens/EditItemScreen';
 import { MoodScreen } from './src/screens/MoodScreen';
 import { StyleSetupScreen } from './src/screens/StyleSetupScreen';
 import { getOrCreateProfileId } from './src/lib/profile';
 import { supabase } from './src/lib/supabase';
-import { StyleProfile } from './src/types';
+import { Item, StyleProfile } from './src/types';
 
 type Tab = 'closet' | 'add' | 'mood';
 
@@ -21,6 +22,7 @@ function Root() {
   const [tab, setTab] = useState<Tab>('closet');
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -65,11 +67,32 @@ function Root() {
     );
   }
 
+  if (editingItem) {
+    return (
+      <View style={styles.container}>
+        <EditItemScreen
+          item={editingItem}
+          profileId={profileId}
+          onCancel={() => setEditingItem(null)}
+          onDone={() => {
+            setEditingItem(null);
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.screen}>
         {tab === 'closet' && (
-          <ClosetScreen profileId={profileId} refreshKey={refreshKey} onAddItem={() => setTab('add')} />
+          <ClosetScreen
+            profileId={profileId}
+            refreshKey={refreshKey}
+            onAddItem={() => setTab('add')}
+            onEditItem={setEditingItem}
+          />
         )}
         {tab === 'add' && (
           <AddItemScreen
