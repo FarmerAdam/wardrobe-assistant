@@ -1,5 +1,6 @@
 import { MOOD_RULES } from '../data/moodRules';
 import { Weather, WEATHER_RULES } from '../data/weatherRules';
+import { isExcludedFromOutfits } from './recentlyWorn';
 import { Item, Outfit, StyleProfile } from '../types';
 
 const NEUTRAL_COLORS = new Set([
@@ -25,11 +26,6 @@ function colorHarmony(a: string, b?: string | null) {
   if (a === b) return 1;
   if (NEUTRAL_COLORS.has(a) || NEUTRAL_COLORS.has(b)) return 1;
   return 0.4; // two different bold colors together — allowed, just scored lower
-}
-
-function daysSince(dateString: string | null) {
-  if (!dateString) return Infinity;
-  return (Date.now() - new Date(dateString).getTime()) / (1000 * 60 * 60 * 24);
 }
 
 /**
@@ -61,14 +57,14 @@ export function scoreItem(item: Item, moodKey: string, weather: Weather, stylePr
     score -= 3;
   }
 
-  // Nudge away from things worn in the last 3 days so suggestions don't repeat.
-  const recency = daysSince(item.last_worn_at);
-  if (recency < 3) score -= 2;
-
   return score;
 }
 
-/** Rank items across one or more categories, best first, dropping anything in the laundry. */
+/**
+ * Rank items across one or more categories, best first, dropping anything in
+ * the laundry or recently worn (within RECENTLY_WORN_DAYS, unless an
+ * exception was granted for that item).
+ */
 function rankCategory(
   items: Item[],
   categories: Item['category'][],
@@ -77,7 +73,7 @@ function rankCategory(
   styleProfile: StyleProfile
 ) {
   return items
-    .filter((i) => categories.includes(i.category) && !i.in_laundry)
+    .filter((i) => categories.includes(i.category) && !i.in_laundry && !isExcludedFromOutfits(i))
     .map((item) => ({ item, score: scoreItem(item, moodKey, weather, styleProfile) }))
     .sort((a, b) => b.score - a.score);
 }

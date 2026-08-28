@@ -28,6 +28,9 @@ create table if not exists items (
   style_tags text[] not null default '{}', -- e.g. {'minimalist','streetwear'}
   last_worn_at timestamptz,
   in_laundry boolean not null default false,
+  -- true lets a still-"recently worn" item (see recentlyWorn.ts) be
+  -- suggested in outfits anyway, as a manually granted exception.
+  recently_worn_exception boolean not null default false,
   created_at timestamptz not null default now()
 );
 

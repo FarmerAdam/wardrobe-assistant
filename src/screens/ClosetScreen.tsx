@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { showAlert } from '../lib/alert';
+import { isRecentlyWorn } from '../lib/recentlyWorn';
 import { supabase } from '../lib/supabase';
 import { Item } from '../types';
 
@@ -19,7 +20,7 @@ export function ClosetScreen({
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionItem, setActionItem] = useState<Item | null>(null);
-  const [updatingLaundry, setUpdatingLaundry] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,19 +40,23 @@ export function ClosetScreen({
     };
   }, [profileId, refreshKey]);
 
-  async function toggleLaundry() {
+  async function applyUpdate(patch: Partial<Item>) {
     if (!actionItem) return;
-    setUpdatingLaundry(true);
-    const nextInLaundry = !actionItem.in_laundry;
-    const { error } = await supabase.from('items').update({ in_laundry: nextInLaundry }).eq('id', actionItem.id);
-    setUpdatingLaundry(false);
+    setUpdating(true);
+    const { error } = await supabase.from('items').update(patch).eq('id', actionItem.id);
+    setUpdating(false);
     if (error) {
       showAlert('Something went wrong', error.message);
       return;
     }
-    setItems((prev) => prev.map((i) => (i.id === actionItem.id ? { ...i, in_laundry: nextInLaundry } : i)));
+    setItems((prev) => prev.map((i) => (i.id === actionItem.id ? { ...i, ...patch } : i)));
     setActionItem(null);
   }
+
+  const toggleLaundry = () => applyUpdate({ in_laundry: !actionItem!.in_laundry });
+  const markRecentlyWorn = () =>
+    applyUpdate({ last_worn_at: new Date().toISOString(), recently_worn_exception: false });
+  const toggleException = () => applyUpdate({ recently_worn_exception: !actionItem!.recently_worn_exception });
 
   if (loading) {
     return (
@@ -81,7 +86,17 @@ export function ClosetScreen({
         contentContainerStyle={{ padding: 8 }}
         renderItem={({ item }) => (
           <Pressable style={styles.card} onPress={() => onEditItem(item)} onLongPress={() => setActionItem(item)}>
-            <Image source={{ uri: item.photo_url }} style={[styles.image, item.in_laundry && styles.inWashImage]} />
+            <View style={styles.imageWrap}>
+              <Image source={{ uri: item.photo_url }} style={[styles.image, item.in_laundry && styles.inWashImage]} />
+              {isRecentlyWorn(item) && (
+                <>
+                  <View style={styles.wornTagString} />
+                  <View style={styles.wornTag}>
+                    <View style={styles.wornTagHole} />
+                  </View>
+                </>
+              )}
+            </View>
             <Text style={styles.caption}>
               {item.category} · {item.primary_color}
             </Text>
@@ -96,21 +111,37 @@ export function ClosetScreen({
             <Text style={styles.actionTitle}>
               {actionItem.category} · {actionItem.primary_color}
             </Text>
+
             <PrimaryButton
-              label={
-                updatingLaundry
-                  ? 'Updating...'
-                  : actionItem.in_laundry
-                    ? 'I CAN WEAR THIS NOW'
-                    : 'Mark As In Wash?'
-              }
+              label={updating ? 'Updating...' : actionItem.in_laundry ? 'I CAN WEAR THIS NOW' : 'Mark As In Wash?'}
               onPress={toggleLaundry}
-              disabled={updatingLaundry}
+              disabled={updating}
             />
+
+            {isRecentlyWorn(actionItem) ? (
+              <PrimaryButton
+                label={
+                  updating
+                    ? 'Updating...'
+                    : actionItem.recently_worn_exception
+                      ? 'Remove Exception'
+                      : 'Make An Exception'
+                }
+                onPress={toggleException}
+                disabled={updating}
+              />
+            ) : (
+              <PrimaryButton
+                label={updating ? 'Updating...' : 'Mark As Recently Worn'}
+                onPress={markRecentlyWorn}
+                disabled={updating}
+              />
+            )}
+
             <PrimaryButton
               label="Cancel"
               onPress={() => setActionItem(null)}
-              disabled={updatingLaundry}
+              disabled={updating}
               variant="secondary"
             />
           </View>
@@ -124,9 +155,31 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   card: { flex: 1, margin: 8 },
+  imageWrap: { position: 'relative' },
   image: { width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#f2f2f2' },
   inWashImage: { borderWidth: 4, borderColor: '#F5C518' },
   caption: { marginTop: 4, fontSize: 12, color: '#555' },
+  wornTagString: {
+    position: 'absolute',
+    top: -8,
+    right: 22,
+    width: 2,
+    height: 10,
+    backgroundColor: '#000',
+  },
+  wornTag: {
+    position: 'absolute',
+    top: -16,
+    right: 8,
+    width: 24,
+    height: 16,
+    backgroundColor: '#000',
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-20deg' }],
+  },
+  wornTagHole: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#fff' },
   overlay: {
     position: 'absolute',
     top: 0,

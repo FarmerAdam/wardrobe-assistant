@@ -14,6 +14,7 @@ export type Item = {
   style_tags: string[];
   last_worn_at: string | null;
   in_laundry: boolean;
+  recently_worn_exception: boolean;
   created_at: string;
 };
 
