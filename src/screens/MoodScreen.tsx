@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { MOODS } from '../data/moodRules';
+import { Weather, WEATHERS } from '../data/weatherRules';
 import { suggestOutfits } from '../lib/matchOutfit';
 import { supabase } from '../lib/supabase';
 import { Item, Outfit, StyleProfile } from '../types';
@@ -9,20 +10,42 @@ import { Item, Outfit, StyleProfile } from '../types';
 export function MoodScreen({ profileId, styleProfile }: { profileId: string; styleProfile: StyleProfile }) {
   const [outfits, setOutfits] = useState<Outfit[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedWeather, setSelectedWeather] = useState<Weather | null>(null);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
 
   async function pickMood(moodKey: string) {
+    if (!selectedWeather) return;
     setSelectedMood(moodKey);
     setLoading(true);
     const { data, error } = await supabase.from('items').select('*').eq('profile_id', profileId);
     setLoading(false);
     if (error || !data) return;
-    setOutfits(suggestOutfits(data as Item[], moodKey, styleProfile, 3));
+    setOutfits(suggestOutfits(data as Item[], moodKey, selectedWeather, styleProfile, 3));
+  }
+
+  if (!selectedWeather) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.title}>What's the weather?</Text>
+        <View style={styles.weatherGrid}>
+          {WEATHERS.map((w) => (
+            <Pressable
+              key={w.key}
+              style={[styles.weatherButton, { backgroundColor: w.backgroundColor }]}
+              onPress={() => setSelectedWeather(w.key)}
+            >
+              <Text style={[styles.weatherLabel, { color: w.textColor }]}>{w.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
   }
 
   if (!selectedMood) {
     return (
       <View style={styles.center}>
+        <PrimaryButton label="← Change weather" onPress={() => setSelectedWeather(null)} variant="secondary" />
         <Text style={styles.title}>What's your mood today?</Text>
         <View style={styles.moodGrid}>
           {MOODS.map((m) => (
@@ -37,7 +60,7 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
-      <PrimaryButton label="← Pick a different mood" onPress={() => setSelectedMood(null)} />
+      <PrimaryButton label="← Pick a different mood" onPress={() => setSelectedMood(null)} variant="secondary" />
       {loading && <Text>Finding outfits...</Text>}
       {!loading && outfits && outfits.length === 0 && (
         <Text style={{ color: '#888', marginTop: 12 }}>
@@ -70,6 +93,13 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
+  weatherGrid: { width: '100%', gap: 12 },
+  weatherButton: {
+    paddingVertical: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  weatherLabel: { fontSize: 18, fontWeight: '800' },
   moodGrid: { width: '100%' },
   moodItem: { width: '100%' },
   outfitCard: { marginBottom: 20, padding: 12, borderRadius: 12, backgroundColor: '#f8f8f8' },

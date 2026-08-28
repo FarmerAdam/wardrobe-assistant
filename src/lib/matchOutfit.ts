@@ -1,4 +1,5 @@
 import { MOOD_RULES } from '../data/moodRules';
+import { Weather, WEATHER_RULES } from '../data/weatherRules';
 import { Item, Outfit, StyleProfile } from '../types';
 
 const NEUTRAL_COLORS = new Set([
@@ -31,15 +32,20 @@ function daysSince(dateString: string | null) {
   return (Date.now() - new Date(dateString).getTime()) / (1000 * 60 * 60 * 24);
 }
 
-/** Score a single item against the chosen mood and the wearer's style profile. Higher is better. */
-export function scoreItem(item: Item, moodKey: string, styleProfile: StyleProfile): number {
+/**
+ * Score a single item against the chosen mood, weather, and the wearer's
+ * style profile. Higher is better. Weather -- a literal temperature signal
+ * -- overrides mood's warmth range, since mood is about style/formality,
+ * not how cold it actually is outside.
+ */
+export function scoreItem(item: Item, moodKey: string, weather: Weather, styleProfile: StyleProfile): number {
   const rule = MOOD_RULES[moodKey];
   if (!rule) return 0;
 
   let score = 0;
 
   if (inRange(item.formality, rule.formalityRange)) score += 2;
-  if (inRange(item.warmth, rule.warmthRange)) score += 2;
+  if (inRange(item.warmth, WEATHER_RULES[weather].warmthRange)) score += 2;
 
   const tagOverlap = item.mood_tags.filter((t) => rule.boostTags.includes(t)).length;
   score += tagOverlap * 1.5;
@@ -67,32 +73,43 @@ function rankCategory(
   items: Item[],
   categories: Item['category'][],
   moodKey: string,
+  weather: Weather,
   styleProfile: StyleProfile
 ) {
   return items
     .filter((i) => categories.includes(i.category) && !i.in_laundry)
-    .map((item) => ({ item, score: scoreItem(item, moodKey, styleProfile) }))
+    .map((item) => ({ item, score: scoreItem(item, moodKey, weather, styleProfile) }))
     .sort((a, b) => b.score - a.score);
 }
 
 /**
- * Build up to `count` outfit suggestions for the given mood.
+ * Build up to `count` outfit suggestions for the given mood and weather.
  * Strategy: rank each category independently, then combine top candidates,
  * preferring combinations with good color harmony, and avoid reusing the
  * exact same item across suggestions unless the wardrobe is too small.
+ *
+ * Weather decides how many outer layers go on: "cold" puts on jumper AND
+ * jacket together, "warm" picks whichever single layer (jumper, jacket, or
+ * outerwear) scores best, "hot" skips layers entirely.
  */
-export function suggestOutfits(items: Item[], moodKey: string, styleProfile: StyleProfile, count = 3): Outfit[] {
-  const dresses = rankCategory(items, ['dress'], moodKey, styleProfile);
-  const tops = rankCategory(items, ['top'], moodKey, styleProfile);
-  const bottoms = rankCategory(items, ['bottom'], moodKey, styleProfile);
-  const shoes = rankCategory(items, ['shoes'], moodKey, styleProfile);
+export function suggestOutfits(
+  items: Item[],
+  moodKey: string,
+  weather: Weather,
+  styleProfile: StyleProfile,
+  count = 3
+): Outfit[] {
+  const dresses = rankCategory(items, ['dress'], moodKey, weather, styleProfile);
+  const tops = rankCategory(items, ['top'], moodKey, weather, styleProfile);
+  const bottoms = rankCategory(items, ['bottom'], moodKey, weather, styleProfile);
+  const shoes = rankCategory(items, ['shoes'], moodKey, weather, styleProfile);
   // Jumper, outerwear, and jacket are all kept fully separate -- each is its
   // own category with its own slot, layered on top of a top+bottom/dress
   // base rather than substituting for the top. Never pooled together.
-  const jumpers = rankCategory(items, ['jumper'], moodKey, styleProfile);
-  const outerwear = rankCategory(items, ['outerwear'], moodKey, styleProfile);
-  const jackets = rankCategory(items, ['jacket'], moodKey, styleProfile);
-  const accessories = rankCategory(items, ['accessory'], moodKey, styleProfile);
+  const jumpers = rankCategory(items, ['jumper'], moodKey, weather, styleProfile);
+  const outerwear = rankCategory(items, ['outerwear'], moodKey, weather, styleProfile);
+  const jackets = rankCategory(items, ['jacket'], moodKey, weather, styleProfile);
+  const accessories = rankCategory(items, ['accessory'], moodKey, weather, styleProfile);
 
   const outfits: Outfit[] = [];
   const usedTopBottomOrDress = new Set<string>();
@@ -113,6 +130,8 @@ export function suggestOutfits(items: Item[], moodKey: string, styleProfile: Sty
 
   bases.sort((a, b) => b.score - a.score);
 
+  const layerMode = WEATHER_RULES[weather].layers;
+
   for (const base of bases) {
     if (outfits.length >= count) break;
 
@@ -125,9 +144,23 @@ export function suggestOutfits(items: Item[], moodKey: string, styleProfile: Sty
     if (base.top) outfit.top = base.top.item;
     if (base.bottom) outfit.bottom = base.bottom.item;
     if (shoes[0]) outfit.shoes = shoes[0].item;
-    if (jumpers[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.jumper = jumpers[0].item;
-    if (outerwear[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.outerwear = outerwear[0].item;
-    if (jackets[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.jacket = jackets[0].item;
+
+    if (layerMode === 'both') {
+      if (jumpers[0]) outfit.jumper = jumpers[0].item;
+      if (jackets[0]) outfit.jacket = jackets[0].item;
+      if (outerwear[0]) outfit.outerwear = outerwear[0].item;
+    } else if (layerMode === 'one') {
+      const bestLayer = [
+        jumpers[0] && { kind: 'jumper' as const, ...jumpers[0] },
+        jackets[0] && { kind: 'jacket' as const, ...jackets[0] },
+        outerwear[0] && { kind: 'outerwear' as const, ...outerwear[0] },
+      ]
+        .filter((x): x is NonNullable<typeof x> => Boolean(x))
+        .sort((a, b) => b.score - a.score)[0];
+      if (bestLayer) outfit[bestLayer.kind] = bestLayer.item;
+    }
+    // layerMode === 'none' -> no jumper/jacket/outerwear at all
+
     if (accessories[0]) outfit.accessory = accessories[0].item;
 
     outfits.push(outfit);
