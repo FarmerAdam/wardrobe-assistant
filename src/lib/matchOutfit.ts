@@ -88,9 +88,10 @@ export function suggestOutfits(items: Item[], moodKey: string, styleProfile: Sty
   const tops = rankCategory(items, ['top', 'jumper'], moodKey, styleProfile);
   const bottoms = rankCategory(items, ['bottom'], moodKey, styleProfile);
   const shoes = rankCategory(items, ['shoes'], moodKey, styleProfile);
-  // A jacket layers over the top slot just like outerwear does, so it shares
-  // that slot's candidate pool rather than getting its own.
-  const outerwear = rankCategory(items, ['outerwear', 'jacket'], moodKey, styleProfile);
+  // Jacket is kept fully separate from outerwear -- its own category, its
+  // own slot, never pooled together even though both are outer layers.
+  const outerwear = rankCategory(items, ['outerwear'], moodKey, styleProfile);
+  const jackets = rankCategory(items, ['jacket'], moodKey, styleProfile);
   const accessories = rankCategory(items, ['accessory'], moodKey, styleProfile);
 
   const outfits: Outfit[] = [];
@@ -125,6 +126,7 @@ export function suggestOutfits(items: Item[], moodKey: string, styleProfile: Sty
     if (base.bottom) outfit.bottom = base.bottom.item;
     if (shoes[0]) outfit.shoes = shoes[0].item;
     if (outerwear[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.outerwear = outerwear[0].item;
+    if (jackets[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.jacket = jackets[0].item;
     if (accessories[0]) outfit.accessory = accessories[0].item;
 
     outfits.push(outfit);

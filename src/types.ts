@@ -35,5 +35,6 @@ export type Outfit = {
   dress?: Item;
   shoes?: Item;
   outerwear?: Item;
+  jacket?: Item;
   accessory?: Item;
 };
