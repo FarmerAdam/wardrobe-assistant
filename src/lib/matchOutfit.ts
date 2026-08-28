@@ -88,7 +88,9 @@ export function suggestOutfits(items: Item[], moodKey: string, styleProfile: Sty
   const tops = rankCategory(items, ['top', 'jumper'], moodKey, styleProfile);
   const bottoms = rankCategory(items, ['bottom'], moodKey, styleProfile);
   const shoes = rankCategory(items, ['shoes'], moodKey, styleProfile);
-  const outerwear = rankCategory(items, ['outerwear'], moodKey, styleProfile);
+  // A jacket layers over the top slot just like outerwear does, so it shares
+  // that slot's candidate pool rather than getting its own.
+  const outerwear = rankCategory(items, ['outerwear', 'jacket'], moodKey, styleProfile);
   const accessories = rankCategory(items, ['accessory'], moodKey, styleProfile);
 
   const outfits: Outfit[] = [];

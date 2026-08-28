@@ -1,4 +1,4 @@
-export type Category = 'top' | 'jumper' | 'bottom' | 'dress' | 'shoes' | 'outerwear' | 'accessory';
+export type Category = 'top' | 'jumper' | 'bottom' | 'dress' | 'shoes' | 'outerwear' | 'jacket' | 'accessory';
 
 export type Item = {
   id: string;

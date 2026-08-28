@@ -9,6 +9,7 @@ const CATEGORY_OPTIONS: { value: Category; label: string }[] = [
   { value: 'dress', label: 'Dress' },
   { value: 'shoes', label: 'Shoes' },
   { value: 'outerwear', label: 'Outerwear' },
+  { value: 'jacket', label: 'Jacket' },
   { value: 'accessory', label: 'Accessory' },
 ];
 
