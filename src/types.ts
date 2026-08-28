@@ -31,6 +31,7 @@ export type StyleProfile = {
 
 export type Outfit = {
   top?: Item;
+  jumper?: Item;
   bottom?: Item;
   dress?: Item;
   shoes?: Item;

@@ -83,13 +83,13 @@ function rankCategory(
  */
 export function suggestOutfits(items: Item[], moodKey: string, styleProfile: StyleProfile, count = 3): Outfit[] {
   const dresses = rankCategory(items, ['dress'], moodKey, styleProfile);
-  // A jumper fills the same outfit slot as a top -- it's an alternative to
-  // wear on its own, not a separate layer like outerwear.
-  const tops = rankCategory(items, ['top', 'jumper'], moodKey, styleProfile);
+  const tops = rankCategory(items, ['top'], moodKey, styleProfile);
   const bottoms = rankCategory(items, ['bottom'], moodKey, styleProfile);
   const shoes = rankCategory(items, ['shoes'], moodKey, styleProfile);
-  // Jacket is kept fully separate from outerwear -- its own category, its
-  // own slot, never pooled together even though both are outer layers.
+  // Jumper, outerwear, and jacket are all kept fully separate -- each is its
+  // own category with its own slot, layered on top of a top+bottom/dress
+  // base rather than substituting for the top. Never pooled together.
+  const jumpers = rankCategory(items, ['jumper'], moodKey, styleProfile);
   const outerwear = rankCategory(items, ['outerwear'], moodKey, styleProfile);
   const jackets = rankCategory(items, ['jacket'], moodKey, styleProfile);
   const accessories = rankCategory(items, ['accessory'], moodKey, styleProfile);
@@ -125,6 +125,7 @@ export function suggestOutfits(items: Item[], moodKey: string, styleProfile: Sty
     if (base.top) outfit.top = base.top.item;
     if (base.bottom) outfit.bottom = base.bottom.item;
     if (shoes[0]) outfit.shoes = shoes[0].item;
+    if (jumpers[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.jumper = jumpers[0].item;
     if (outerwear[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.outerwear = outerwear[0].item;
     if (jackets[0] && MOOD_RULES[moodKey]?.warmthRange[1] >= 2) outfit.jacket = jackets[0].item;
     if (accessories[0]) outfit.accessory = accessories[0].item;
