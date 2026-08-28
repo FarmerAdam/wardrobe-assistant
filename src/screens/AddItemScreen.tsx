@@ -1,3 +1,4 @@
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -27,6 +28,26 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
   const [moodTags, setMoodTags] = useState('');
   const [saving, setSaving] = useState(false);
 
+  /**
+   * Modern phone cameras produce multi-MB photos even at moderate JPEG
+   * quality, which was likely why saves kept failing with "Failed to fetch"
+   * over patchy mobile signal -- the upload was just too big/slow. Resize
+   * down to a sensible max width before it ever reaches upload.
+   */
+  async function resizeForUpload(uri: string): Promise<string> {
+    try {
+      const context = ImageManipulator.manipulate(uri);
+      context.resize({ width: 1200 });
+      const imageRef = await context.renderAsync();
+      const result = await imageRef.saveAsync({ compress: 0.7, format: SaveFormat.JPEG });
+      return result.uri;
+    } catch {
+      // If resizing fails for any reason, fall back to the original photo
+      // rather than blocking the user from saving at all.
+      return uri;
+    }
+  }
+
   async function takePhoto() {
     // requestCameraPermissionsAsync is a no-op on web (the browser owns camera
     // permission, not the OS), so calling it there just wastes the user gesture
@@ -39,7 +60,7 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
       }
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (!result.canceled) setPhotoUri(await resizeForUpload(result.assets[0].uri));
   }
 
   async function pickFromLibrary() {
@@ -51,7 +72,7 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
       }
     }
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
-    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+    if (!result.canceled) setPhotoUri(await resizeForUpload(result.assets[0].uri));
   }
 
   async function save() {
@@ -104,7 +125,12 @@ export function AddItemScreen({ profileId, onSaved }: { profileId: string; onSav
       onSaved();
       showAlert('Saved!', 'Item added to the closet.');
     } catch (err: any) {
-      showAlert('Something went wrong', err.message ?? String(err));
+      const message = err.message ?? String(err);
+      if (message === 'Failed to fetch') {
+        showAlert('Connection dropped', 'The upload didn’t make it through — check your signal/WiFi and try again.');
+      } else {
+        showAlert('Something went wrong', message);
+      }
     } finally {
       setSaving(false);
     }
