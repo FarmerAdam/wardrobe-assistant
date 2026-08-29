@@ -59,7 +59,7 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16 }}>
+    <View style={{ flex: 1, padding: 16 }}>
       <PrimaryButton label="← Pick a different mood" onPress={() => setSelectedMood(null)} variant="secondary" />
       {loading && <Text>Finding outfits...</Text>}
       {!loading && outfits && outfits.length === 0 && (
@@ -68,25 +68,28 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
           shoes.
         </Text>
       )}
-      {!loading &&
-        outfits?.map((outfit, i) => (
-          <View key={i} style={styles.outfitCard}>
-            <Text style={styles.outfitTitle}>Option {i + 1}</Text>
-            <View style={styles.outfitRow}>
-              {Object.entries(outfit).map(([slot, item]) =>
-                item ? (
-                  <View key={slot} style={styles.outfitItem}>
-                    <Image source={{ uri: item.photo_url }} style={styles.outfitImage} />
-                    {/* Label by the item's real category, not its outfit slot --
-                        a jumper filling the "top" slot should still say "jumper". */}
-                    <Text style={styles.outfitCaption}>{item.category}</Text>
-                  </View>
-                ) : null
-              )}
+      {!loading && outfits && outfits.length > 0 && (
+        <ScrollView horizontal contentContainerStyle={styles.outfitRowScroll} showsHorizontalScrollIndicator={false}>
+          {outfits.map((outfit, i) => (
+            <View key={i} style={styles.outfitCard}>
+              <Text style={styles.outfitTitle}>Option {i + 1}</Text>
+              <View style={styles.outfitItemsGrid}>
+                {Object.entries(outfit).map(([slot, item]) =>
+                  item ? (
+                    <View key={slot} style={styles.outfitItem}>
+                      <Image source={{ uri: item.photo_url }} style={styles.outfitImage} />
+                      {/* Label by the item's real category, not its outfit slot --
+                          a jumper filling the "top" slot should still say "jumper". */}
+                      <Text style={styles.outfitCaption}>{item.category}</Text>
+                    </View>
+                  ) : null
+                )}
+              </View>
             </View>
-          </View>
-        ))}
-    </ScrollView>
+          ))}
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
@@ -102,9 +105,10 @@ const styles = StyleSheet.create({
   weatherLabel: { fontSize: 18, fontWeight: '800' },
   moodGrid: { width: '100%' },
   moodItem: { width: '100%' },
-  outfitCard: { marginBottom: 20, padding: 12, borderRadius: 12, backgroundColor: '#f8f8f8' },
+  outfitRowScroll: { paddingTop: 16, paddingBottom: 8, gap: 12 },
+  outfitCard: { width: 210, padding: 12, borderRadius: 12, backgroundColor: '#f8f8f8' },
   outfitTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
-  outfitRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  outfitItemsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   outfitItem: { width: 90 },
   outfitImage: { width: 90, height: 90, borderRadius: 8, backgroundColor: '#eee' },
   outfitCaption: { fontSize: 11, color: '#666', marginTop: 4, textAlign: 'center' },
