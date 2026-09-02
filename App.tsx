@@ -19,6 +19,7 @@ function Root() {
   const insets = useSafeAreaInsets();
   const [profileId, setProfileId] = useState<string | null>(null);
   const [styleProfile, setStyleProfile] = useState<StyleProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('closet');
   const [refreshKey, setRefreshKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -28,12 +29,17 @@ function Root() {
     (async () => {
       try {
         const id = await getOrCreateProfileId('Wardrobe');
-        setProfileId(id);
         const { data } = await supabase.from('profiles').select('style_profile').eq('id', id).single();
         const sp = data?.style_profile as StyleProfile | undefined;
+        // Set both together, only once the style profile has actually loaded —
+        // otherwise the style quiz renders during the fetch and then vanishes
+        // mid-answer when the saved profile arrives.
+        setProfileId(id);
         setStyleProfile(sp && sp.styles ? sp : null);
       } catch (err: any) {
         setError(err.message ?? String(err));
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -50,7 +56,7 @@ function Root() {
     );
   }
 
-  if (!profileId) {
+  if (loading || !profileId) {
     return (
       <View style={styles.center}>
         <Text>Loading...</Text>

@@ -1,10 +1,10 @@
-import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { Image, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text } from 'react-native';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ItemFormFields, ItemFormValues } from '../components/ItemFormFields';
 import { showAlert, showConfirm } from '../lib/alert';
-import { resizeForUpload, uploadPhoto } from '../lib/photoUpload';
+import { captureFromCamera, pickFromLibrary } from '../lib/photoInput';
+import { uploadPhoto } from '../lib/photoUpload';
 import { supabase } from '../lib/supabase';
 import { Item } from '../types';
 
@@ -36,27 +36,13 @@ export function EditItemScreen({
   }
 
   async function retakePhoto() {
-    if (Platform.OS !== 'web') {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        showAlert('Camera permission needed', 'Enable camera access to photograph an item.');
-        return;
-      }
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true });
-    if (!result.canceled) setPhotoUri(await resizeForUpload(result.assets[0].uri));
+    const uri = await captureFromCamera();
+    if (uri) setPhotoUri(uri);
   }
 
-  async function pickFromLibrary() {
-    if (Platform.OS !== 'web') {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        showAlert('Photo access needed', 'Enable photo library access to choose an item photo.');
-        return;
-      }
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true });
-    if (!result.canceled) setPhotoUri(await resizeForUpload(result.assets[0].uri));
+  async function chooseFromLibrary() {
+    const uri = await pickFromLibrary();
+    if (uri) setPhotoUri(uri);
   }
 
   async function save() {
@@ -126,7 +112,7 @@ export function EditItemScreen({
 
       <Image source={{ uri: photoUri ?? item.photo_url }} style={styles.preview} />
       <PrimaryButton label="Retake photo" onPress={retakePhoto} />
-      <PrimaryButton label="Choose from library" onPress={pickFromLibrary} />
+      <PrimaryButton label="Choose from library" onPress={chooseFromLibrary} />
 
       <ItemFormFields values={values} onChange={patchValues} />
 
