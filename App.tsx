@@ -3,13 +3,15 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddItemScreen } from './src/screens/AddItemScreen';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { ClosetScreen } from './src/screens/ClosetScreen';
 import { EditItemScreen } from './src/screens/EditItemScreen';
 import { MoodScreen } from './src/screens/MoodScreen';
 import { StyleSetupScreen } from './src/screens/StyleSetupScreen';
-import { getOrCreateProfileId } from './src/lib/profile';
+import { getMyProfile, signOut } from './src/lib/auth';
+import { showConfirm } from './src/lib/alert';
 import { supabase } from './src/lib/supabase';
-import { Item, StyleProfile } from './src/types';
+import { Item, Profile, StyleProfile } from './src/types';
 
 type Tab = 'closet' | 'add' | 'mood';
 
@@ -17,8 +19,7 @@ const EMPTY_STYLE_PROFILE: StyleProfile = { styles: [], favorite_colors: [], avo
 
 function Root() {
   const insets = useSafeAreaInsets();
-  const [profileId, setProfileId] = useState<string | null>(null);
-  const [styleProfile, setStyleProfile] = useState<StyleProfile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('closet');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -28,21 +29,27 @@ function Root() {
   useEffect(() => {
     (async () => {
       try {
-        const id = await getOrCreateProfileId('Wardrobe');
-        const { data } = await supabase.from('profiles').select('style_profile').eq('id', id).single();
-        const sp = data?.style_profile as StyleProfile | undefined;
-        // Set both together, only once the style profile has actually loaded —
-        // otherwise the style quiz renders during the fetch and then vanishes
-        // mid-answer when the saved profile arrives.
-        setProfileId(id);
-        setStyleProfile(sp && sp.styles ? sp : null);
+        setProfile(await getMyProfile());
       } catch (err: any) {
         setError(err.message ?? String(err));
       } finally {
         setLoading(false);
       }
     })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setProfile(null);
+        setTab('closet');
+      }
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  async function handleLogout() {
+    const confirmed = await showConfirm('Log out?', 'You can log back in with your username and password.', 'Log out');
+    if (confirmed) await signOut();
+  }
 
   if (error) {
     return (
@@ -56,7 +63,7 @@ function Root() {
     );
   }
 
-  if (loading || !profileId) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <Text>Loading...</Text>
@@ -64,14 +71,21 @@ function Root() {
     );
   }
 
-  if (!styleProfile) {
+  if (!profile) {
+    return <AuthScreen onAuthed={setProfile} />;
+  }
+
+  if (!profile.style_profile) {
     return (
       <StyleSetupScreen
-        profileId={profileId}
-        onDone={(sp) => setStyleProfile(sp)}
+        profileId={profile.id}
+        onDone={(sp) => setProfile({ ...profile, style_profile: sp })}
       />
     );
   }
+
+  const profileId = profile.id;
+  const styleProfile = profile.style_profile;
 
   if (editingItem) {
     return (
@@ -91,6 +105,16 @@ function Root() {
 
   return (
     <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: (insets.top || 8) + 4 }]}>
+        <Text style={styles.headerName} numberOfLines={1}>
+          {profile.display_name}
+          {profile.username ? <Text style={styles.headerHandle}> @{profile.username}</Text> : null}
+        </Text>
+        <Text style={styles.logout} onPress={handleLogout}>
+          Log out
+        </Text>
+      </View>
+
       <View style={styles.screen}>
         {tab === 'closet' && (
           <ClosetScreen
@@ -142,6 +166,18 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   screen: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  headerName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#222' },
+  headerHandle: { fontWeight: '500', color: '#999' },
+  logout: { fontSize: 13, color: '#2a6df4', fontWeight: '600', paddingLeft: 12 },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

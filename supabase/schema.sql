@@ -10,8 +10,18 @@ create table if not exists profiles (
   display_name text not null,
   -- style quiz answers captured at setup, e.g. { "styles": ["minimalist","streetwear"], "favorite_colors": ["black","olive"], "avoid": ["neon"] }
   style_profile jsonb not null default '{}'::jsonb,
+  -- Accounts (added 2026-09-04 for friends + chat). A profile with a
+  -- user_id is owned by a logged-in account; username is what friends
+  -- type to find each other.
+  user_id uuid references auth.users(id) on delete cascade,
+  username text,
+  avatar_url text,
   created_at timestamptz not null default now()
 );
+
+-- One username per person, one profile per account, both case-insensitive-safe.
+create unique index if not exists profiles_username_key on profiles (username);
+create unique index if not exists profiles_user_id_key on profiles (user_id);
 
 -- One row per photographed clothing item
 create table if not exists items (

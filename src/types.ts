@@ -30,6 +30,15 @@ export type StyleProfile = {
   avoid: string[];
 };
 
+export type Profile = {
+  id: string;
+  user_id: string | null;
+  username: string | null;
+  display_name: string;
+  avatar_url: string | null;
+  style_profile: StyleProfile | null;
+};
+
 export type Outfit = {
   top?: Item;
   jumper?: Item;
