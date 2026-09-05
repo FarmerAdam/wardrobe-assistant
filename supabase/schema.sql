@@ -58,30 +58,45 @@ create table if not exists outfits (
   created_at timestamptz not null default now()
 );
 
--- Row Level Security: intentionally OFF for now, since this starts as a
--- single-family, single-device app with no auth yet. New Supabase projects
--- can enable RLS by default even on plain `create table` statements, which
--- blocks all access until policies exist — so disable it explicitly here.
-alter table profiles disable row level security;
-alter table items disable row level security;
-alter table outfits disable row level security;
+-- Row Level Security (locked down 2026-09-05, once accounts existed —
+-- see supabase/migration_2026-09-05_lockdown.sql for the applied history).
+-- Model: profiles are readable by anyone logged in (needed for username
+-- search / seeing a friend's name+photo before connecting), but each
+-- person can only write their own row. items and outfits are fully
+-- private to their owner.
+alter table profiles enable row level security;
+alter table items enable row level security;
+alter table outfits enable row level security;
 
-grant select, insert, update, delete on profiles to anon, authenticated;
-grant select, insert, update, delete on items to anon, authenticated;
-grant select, insert, update, delete on outfits to anon, authenticated;
+grant select, insert, update, delete on profiles to authenticated;
+grant select, insert, update, delete on items to authenticated;
+grant select, insert, update, delete on outfits to authenticated;
 
--- When you add Supabase Auth later, re-enable RLS on each table and add
--- policies like:
--- alter table items enable row level security;
--- create policy "owner can read/write own items" on items
---   using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+create policy "profiles readable by anyone logged in" on profiles
+  for select to authenticated using (true);
+create policy "profiles insert own row" on profiles
+  for insert to authenticated with check (user_id = auth.uid());
+create policy "profiles update own row" on profiles
+  for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy "items owner full access" on items
+  for all to authenticated
+  using (profile_id in (select id from profiles where user_id = auth.uid()))
+  with check (profile_id in (select id from profiles where user_id = auth.uid()));
+
+create policy "outfits owner full access" on outfits
+  for all to authenticated
+  using (profile_id in (select id from profiles where user_id = auth.uid()))
+  with check (profile_id in (select id from profiles where user_id = auth.uid()));
 
 -- Storage: the `item-photos` bucket lives in the shared storage.objects /
--- storage.buckets tables, so instead of disabling their RLS wholesale,
+-- storage.buckets tables, so instead of touching their RLS wholesale,
 -- scope policies to just this bucket. storage.buckets needs its own SELECT
 -- policy too -- without it, the Storage API can't find the bucket's row to
 -- validate an upload against and reports "Bucket not found" even though the
--- bucket exists and is marked public.
+-- bucket exists and is marked public. Reads stay public (photos need to
+-- load for anyone with the URL); writes are restricted to your own
+-- "<profile_id>/..." folder.
 grant select on storage.buckets to anon, authenticated;
 
 create policy "public read item-photos bucket" on storage.buckets
@@ -89,9 +104,22 @@ create policy "public read item-photos bucket" on storage.buckets
 
 create policy "public read item-photos" on storage.objects
   for select to public using (bucket_id = 'item-photos');
-create policy "public upload item-photos" on storage.objects
-  for insert to public with check (bucket_id = 'item-photos');
-create policy "public update item-photos" on storage.objects
-  for update to public using (bucket_id = 'item-photos');
-create policy "public delete item-photos" on storage.objects
-  for delete to public using (bucket_id = 'item-photos');
+
+create policy "owner upload item-photos" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'item-photos'
+    and (storage.foldername(name))[1] in (select id::text from profiles where user_id = auth.uid())
+  );
+create policy "owner update item-photos" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'item-photos'
+    and (storage.foldername(name))[1] in (select id::text from profiles where user_id = auth.uid())
+  );
+create policy "owner delete item-photos" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'item-photos'
+    and (storage.foldername(name))[1] in (select id::text from profiles where user_id = auth.uid())
+  );
