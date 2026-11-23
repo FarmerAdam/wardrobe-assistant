@@ -33,9 +33,12 @@ export async function uploadPhoto(profileId: string, uri: string): Promise<strin
   const filePath = `${profileId}/${Date.now()}.${fileExt}`;
   const arrayBuffer = await blob.arrayBuffer();
 
+  // filePath is content-addressed (profileId/timestamp) and never overwritten,
+  // so it's safe to cache for as long as browsers/devices will keep it —
+  // every repeat view then costs zero egress instead of re-hitting the CDN.
   const { error: uploadError } = await supabase.storage
     .from('item-photos')
-    .upload(filePath, arrayBuffer, { contentType });
+    .upload(filePath, arrayBuffer, { contentType, cacheControl: '31536000' });
   if (uploadError) throw uploadError;
 
   const { data } = supabase.storage.from('item-photos').getPublicUrl(filePath);
