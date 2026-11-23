@@ -1,17 +1,40 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { MOODS } from '../data/moodRules';
 import { Weather, WEATHERS } from '../data/weatherRules';
+import { isMoodUnlocked, localDateString, LOCKED_MESSAGE_BODY, LOCKED_MESSAGE_TITLE } from '../lib/calendarLock';
+import { showAlert } from '../lib/alert';
 import { suggestOutfits } from '../lib/matchOutfit';
 import { supabase } from '../lib/supabase';
-import { Item, Outfit, StyleProfile } from '../types';
+import { CalendarMark, Item, Outfit, StyleProfile } from '../types';
 
 export function MoodScreen({ profileId, styleProfile }: { profileId: string; styleProfile: StyleProfile }) {
   const [outfits, setOutfits] = useState<Outfit[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedWeather, setSelectedWeather] = useState<Weather | null>(null);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [checkingLock, setCheckingLock] = useState(true);
+  const [locked, setLocked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const today = localDateString();
+    supabase
+      .from('calendar_marks')
+      .select('*')
+      .eq('profile_id', profileId)
+      .eq('date', today)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        const marks = !error && data ? (data as CalendarMark[]) : [];
+        setLocked(!isMoodUnlocked(today, marks));
+        setCheckingLock(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId]);
 
   async function pickMood(moodKey: string) {
     if (!selectedWeather) return;
@@ -21,6 +44,36 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
     setLoading(false);
     if (error || !data) return;
     setOutfits(suggestOutfits(data as Item[], moodKey, selectedWeather, styleProfile, 3));
+  }
+
+  async function saveOutfit(outfit: Outfit) {
+    if (!selectedMood) return;
+    const item_ids = Object.values(outfit)
+      .filter((item): item is Item => !!item)
+      .map((item) => item.id);
+    const { error } = await supabase.from('outfits').insert({ profile_id: profileId, mood: selectedMood, item_ids });
+    if (error) {
+      showAlert('Something went wrong', error.message);
+    } else {
+      showAlert('Saved!', 'Added to your saved outfits — friends can react to it once you add some.');
+    }
+  }
+
+  if (checkingLock) {
+    return (
+      <View style={styles.center}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (locked) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.lockedTitle}>{LOCKED_MESSAGE_TITLE}</Text>
+        <Text style={styles.lockedBody}>{LOCKED_MESSAGE_BODY}</Text>
+      </View>
+    );
   }
 
   if (!selectedWeather) {
@@ -85,6 +138,7 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
                   ) : null
                 )}
               </View>
+              <PrimaryButton label="💾 Save this outfit" onPress={() => saveOutfit(outfit)} variant="secondary" />
             </View>
           ))}
         </ScrollView>
@@ -96,6 +150,8 @@ export function MoodScreen({ profileId, styleProfile }: { profileId: string; sty
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
+  lockedTitle: { fontSize: 28, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  lockedBody: { fontSize: 15, color: '#666', textAlign: 'center' },
   weatherGrid: { width: '100%', gap: 12 },
   weatherButton: {
     paddingVertical: 20,

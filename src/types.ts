@@ -39,6 +39,53 @@ export type Profile = {
   style_profile: StyleProfile | null;
 };
 
+export type DayType = 'casual' | 'holiday';
+
+export type CalendarMark = {
+  id: string;
+  profile_id: string;
+  date: string; // 'YYYY-MM-DD'
+  day_type: DayType;
+  created_at: string;
+};
+
+export type FriendRequestStatus = 'pending' | 'accepted';
+
+export type FriendRequest = {
+  id: string;
+  requester_id: string;
+  addressee_id: string;
+  status: FriendRequestStatus;
+  created_at: string;
+  responded_at: string | null;
+};
+
+export type SavedOutfit = {
+  id: string;
+  profile_id: string;
+  mood: string;
+  item_ids: string[];
+  is_favorite: boolean;
+  worn_at: string | null;
+  created_at: string;
+};
+
+export type OutfitReaction = {
+  id: string;
+  outfit_id: string;
+  profile_id: string;
+  emoji: string;
+  created_at: string;
+};
+
+export type Message = {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  body: string;
+  created_at: string;
+};
+
 export type Outfit = {
   top?: Item;
   jumper?: Item;

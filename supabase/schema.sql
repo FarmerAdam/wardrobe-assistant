@@ -58,19 +58,91 @@ create table if not exists outfits (
   created_at timestamptz not null default now()
 );
 
+-- One row per date a profile has marked in advance as "not a uniform day"
+-- (a casual clothes day, or a school holiday). Added 2026-09-07 for the
+-- dress code / uniform lock feature — see
+-- supabase/migration_2026-09-07_calendar_marks.sql for the applied history.
+create table if not exists calendar_marks (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references profiles(id) on delete cascade,
+  date date not null,
+  day_type text not null check (day_type in ('casual','holiday')),
+  created_at timestamptz not null default now(),
+  unique (profile_id, date)
+);
+
+create index if not exists calendar_marks_profile_id_idx on calendar_marks(profile_id);
+
+-- Friend requests (added 2026-09-13). One row per requester/addressee pair;
+-- "are we friends" = an accepted row exists between the two ids, either
+-- direction. See supabase/migration_2026-09-13_friends_and_reactions.sql.
+create table if not exists friend_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references profiles(id) on delete cascade,
+  addressee_id uuid not null references profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending','accepted')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  unique (requester_id, addressee_id),
+  check (requester_id <> addressee_id)
+);
+
+create index if not exists friend_requests_requester_idx on friend_requests(requester_id);
+create index if not exists friend_requests_addressee_idx on friend_requests(addressee_id);
+
+-- One reaction (a single emoji) per person per saved outfit. Added
+-- 2026-09-13 alongside friend_requests.
+create table if not exists outfit_reactions (
+  id uuid primary key default gen_random_uuid(),
+  outfit_id uuid not null references outfits(id) on delete cascade,
+  profile_id uuid not null references profiles(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  unique (outfit_id, profile_id)
+);
+
+create index if not exists outfit_reactions_outfit_idx on outfit_reactions(outfit_id);
+
+-- Direct messages between accepted friends (added 2026-09-14). No thread
+-- table — a conversation is just every row where {sender,recipient} match
+-- the pair. Immutable: no update/delete policy exists for this table.
+-- See supabase/migration_2026-09-14_messages.sql.
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references profiles(id) on delete cascade,
+  recipient_id uuid not null references profiles(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now(),
+  check (sender_id <> recipient_id),
+  check (char_length(btrim(body)) between 1 and 2000)
+);
+
+create index if not exists messages_sender_idx on messages(sender_id);
+create index if not exists messages_recipient_idx on messages(recipient_id);
+create index if not exists messages_conversation_idx
+  on messages(least(sender_id, recipient_id), greatest(sender_id, recipient_id), created_at);
+
 -- Row Level Security (locked down 2026-09-05, once accounts existed —
 -- see supabase/migration_2026-09-05_lockdown.sql for the applied history).
 -- Model: profiles are readable by anyone logged in (needed for username
 -- search / seeing a friend's name+photo before connecting), but each
--- person can only write their own row. items and outfits are fully
--- private to their owner.
+-- person can only write their own row. items, outfits and calendar_marks
+-- are fully private to their owner.
 alter table profiles enable row level security;
 alter table items enable row level security;
 alter table outfits enable row level security;
+alter table calendar_marks enable row level security;
+alter table friend_requests enable row level security;
+alter table outfit_reactions enable row level security;
+alter table messages enable row level security;
 
 grant select, insert, update, delete on profiles to authenticated;
 grant select, insert, update, delete on items to authenticated;
 grant select, insert, update, delete on outfits to authenticated;
+grant select, insert, update, delete on calendar_marks to authenticated;
+grant select, insert, update, delete on friend_requests to authenticated;
+grant select, insert, update, delete on outfit_reactions to authenticated;
+grant select, insert on messages to authenticated;
 
 create policy "profiles readable by anyone logged in" on profiles
   for select to authenticated using (true);
@@ -88,6 +160,108 @@ create policy "outfits owner full access" on outfits
   for all to authenticated
   using (profile_id in (select id from profiles where user_id = auth.uid()))
   with check (profile_id in (select id from profiles where user_id = auth.uid()));
+
+create policy "calendar_marks owner full access" on calendar_marks
+  for all to authenticated
+  using (profile_id in (select id from profiles where user_id = auth.uid()))
+  with check (profile_id in (select id from profiles where user_id = auth.uid()));
+
+create policy "friend_requests visible to either party" on friend_requests
+  for select to authenticated
+  using (
+    requester_id in (select id from profiles where user_id = auth.uid())
+    or addressee_id in (select id from profiles where user_id = auth.uid())
+  );
+create policy "friend_requests insert as requester" on friend_requests
+  for insert to authenticated
+  with check (requester_id in (select id from profiles where user_id = auth.uid()));
+create policy "friend_requests addressee can accept" on friend_requests
+  for update to authenticated
+  using (addressee_id in (select id from profiles where user_id = auth.uid()))
+  with check (addressee_id in (select id from profiles where user_id = auth.uid()));
+create policy "friend_requests either party can delete" on friend_requests
+  for delete to authenticated
+  using (
+    requester_id in (select id from profiles where user_id = auth.uid())
+    or addressee_id in (select id from profiles where user_id = auth.uid())
+  );
+
+-- Friends can see a profile's saved outfits, in addition to the owner
+-- (Postgres ORs multiple permissive SELECT policies, so this only widens
+-- reads — insert/update/delete stay owner-only via the policy above).
+create policy "outfits visible to accepted friends" on outfits
+  for select to authenticated
+  using (
+    exists (
+      select 1 from friend_requests fr
+      where fr.status = 'accepted'
+        and (
+          (fr.requester_id = outfits.profile_id and fr.addressee_id in (select id from profiles where user_id = auth.uid()))
+          or (fr.addressee_id = outfits.profile_id and fr.requester_id in (select id from profiles where user_id = auth.uid()))
+        )
+    )
+  );
+
+-- Friends can see only the specific items that appear inside a saved
+-- outfit they can already see (not the whole closet).
+create policy "items visible via a friend's saved outfit" on items
+  for select to authenticated
+  using (
+    exists (
+      select 1 from outfits o
+      join friend_requests fr on (
+        (fr.requester_id = o.profile_id and fr.addressee_id in (select id from profiles where user_id = auth.uid()))
+        or (fr.addressee_id = o.profile_id and fr.requester_id in (select id from profiles where user_id = auth.uid()))
+      )
+      where fr.status = 'accepted' and items.id = any(o.item_ids)
+    )
+  );
+
+create policy "outfit_reactions visible if you can see the outfit" on outfit_reactions
+  for select to authenticated
+  using (
+    profile_id in (select id from profiles where user_id = auth.uid())
+    or outfit_id in (select id from outfits where profile_id in (select id from profiles where user_id = auth.uid()))
+  );
+create policy "outfit_reactions manage own" on outfit_reactions
+  for all to authenticated
+  using (profile_id in (select id from profiles where user_id = auth.uid()))
+  with check (
+    profile_id in (select id from profiles where user_id = auth.uid())
+    and exists (
+      select 1 from outfits o
+      where o.id = outfit_id
+        and (
+          o.profile_id in (select id from profiles where user_id = auth.uid())
+          or exists (
+            select 1 from friend_requests fr
+            where fr.status = 'accepted'
+              and ((fr.requester_id = o.profile_id and fr.addressee_id in (select id from profiles where user_id = auth.uid()))
+                or (fr.addressee_id = o.profile_id and fr.requester_id in (select id from profiles where user_id = auth.uid())))
+          )
+        )
+    )
+  );
+
+create policy "messages visible to sender or recipient" on messages
+  for select to authenticated
+  using (
+    sender_id in (select id from profiles where user_id = auth.uid())
+    or recipient_id in (select id from profiles where user_id = auth.uid())
+  );
+create policy "messages insert to an accepted friend" on messages
+  for insert to authenticated
+  with check (
+    sender_id in (select id from profiles where user_id = auth.uid())
+    and exists (
+      select 1 from friend_requests fr
+      where fr.status = 'accepted'
+        and (
+          (fr.requester_id = recipient_id and fr.addressee_id in (select id from profiles where user_id = auth.uid()))
+          or (fr.addressee_id = recipient_id and fr.requester_id in (select id from profiles where user_id = auth.uid()))
+        )
+    )
+  );
 
 -- Storage: the `item-photos` bucket lives in the shared storage.objects /
 -- storage.buckets tables, so instead of touching their RLS wholesale,

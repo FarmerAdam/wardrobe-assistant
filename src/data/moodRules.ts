@@ -6,7 +6,7 @@ export const MOODS: Mood[] = [
   { key: 'adventurous', label: 'Adventurous', emoji: '🏔️' },
   { key: 'low_key', label: 'Low-key', emoji: '😌' },
   { key: 'dressed_up', label: 'Dressed up', emoji: '✨' },
-  { key: 'playful', label: 'Playful', emoji: '🎨' },
+  { key: 'fitness', label: 'Fitness', emoji: '🏃' },
 ];
 
 // Each mood maps to a target range for formality plus which mood_tags count
@@ -47,9 +47,9 @@ export const MOOD_RULES: Record<
     preferBoldPatterns: false,
     boostTags: ['dressed_up', 'elegant'],
   },
-  playful: {
-    formalityRange: [1, 3],
-    preferBoldPatterns: true,
-    boostTags: ['playful', 'fun', 'colorful'],
+  fitness: {
+    formalityRange: [1, 1],
+    preferBoldPatterns: false,
+    boostTags: ['fitness', 'athletic', 'sporty'],
   },
 };

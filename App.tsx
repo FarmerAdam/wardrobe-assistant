@@ -4,7 +4,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddItemScreen } from './src/screens/AddItemScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { CalendarScreen } from './src/screens/CalendarScreen';
 import { ClosetScreen } from './src/screens/ClosetScreen';
+import { FriendsScreen } from './src/screens/FriendsScreen';
 import { EditItemScreen } from './src/screens/EditItemScreen';
 import { MoodScreen } from './src/screens/MoodScreen';
 import { StyleSetupScreen } from './src/screens/StyleSetupScreen';
@@ -13,7 +15,7 @@ import { showConfirm } from './src/lib/alert';
 import { supabase } from './src/lib/supabase';
 import { Item, Profile, StyleProfile } from './src/types';
 
-type Tab = 'closet' | 'add' | 'mood';
+type Tab = 'closet' | 'add' | 'mood' | 'calendar' | 'friends';
 
 const EMPTY_STYLE_PROFILE: StyleProfile = { styles: [], favorite_colors: [], avoid: [] };
 
@@ -115,6 +117,15 @@ function Root() {
         </Text>
       </View>
 
+      <View style={styles.topTabRow}>
+        <Pressable onPress={() => setTab('friends')}>
+          <Text style={[styles.topTabLabel, tab === 'friends' && styles.tabLabelActive]}>Friends</Text>
+        </Pressable>
+        <Pressable onPress={() => setTab('calendar')}>
+          <Text style={[styles.topTabLabel, tab === 'calendar' && styles.tabLabelActive]}>Calendar</Text>
+        </Pressable>
+      </View>
+
       <View style={styles.screen}>
         {tab === 'closet' && (
           <ClosetScreen
@@ -134,6 +145,8 @@ function Root() {
           />
         )}
         {tab === 'mood' && <MoodScreen profileId={profileId} styleProfile={styleProfile ?? EMPTY_STYLE_PROFILE} />}
+        {tab === 'calendar' && <CalendarScreen profileId={profileId} />}
+        {tab === 'friends' && <FriendsScreen profileId={profileId} />}
       </View>
 
       <View style={[styles.tabBar, { paddingBottom: insets.bottom || 12 }]}>
@@ -178,6 +191,15 @@ const styles = StyleSheet.create({
   headerName: { flex: 1, fontSize: 14, fontWeight: '700', color: '#222' },
   headerHandle: { fontWeight: '500', color: '#999' },
   logout: { fontSize: 13, color: '#2a6df4', fontWeight: '600', paddingLeft: 12 },
+  topTabRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  topTabLabel: { fontSize: 13, color: '#999', fontWeight: '600' },
   tabBar: {
     flexDirection: 'row',
     borderTopWidth: 1,
